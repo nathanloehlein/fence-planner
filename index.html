@@ -55,6 +55,10 @@ label input,label select{margin-top:3px;color:var(--ink)}
 input:disabled{opacity:.55}
 .check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink)}
 .check input{width:auto;margin:0}
+
+.slots{display:grid;gap:6px;margin-bottom:14px}
+.slot{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;background:var(--chip)}
+.slot small{display:block;color:var(--mute);font-size:12px}
 textarea{min-height:70px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
@@ -125,7 +129,9 @@ textarea{min-height:70px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,
 
   <section class="card">
     <h2>Save and share</h2>
-    <p class="hint" style="margin:0 0 8px">Your layout saves in this browser automatically. Copy it to keep a backup, or paste one in to load it.</p>
+    <p class="hint" style="margin:0 0 8px">Your current layout saves in this browser automatically. Use the slots to keep up to three layouts to switch between.</p>
+    <div class="slots" id="slots"></div>
+    <p class="hint" style="margin:0 0 8px">Copy a layout to keep a backup or move it to another browser, or paste one in to load it.</p>
     <textarea id="io" aria-label="Layout data"></textarea>
     <div class="bar" style="margin:8px 0 0"><button id="copyOut">Copy layout</button><button id="loadIn">Load pasted layout</button></div>
     <div id="ioMsg" class="hint" style="margin:6px 0 0"></div>
@@ -372,6 +378,16 @@ $('cLeft').onchange=e=>{cfg.startLeft=e.target.checked;changed()};
 $('cYAuto').onchange=e=>{cfg.yAuto=e.target.checked;changed()};
 $('cMagRows').onchange=e=>{cfg.mag=e.target.checked;changed()};
 
+const SKEY='fence-light-planner-slots';let slotArm={i:-1,t:0};
+function getSlots(){try{const a=JSON.parse(localStorage.getItem(SKEY)||'null');if(Array.isArray(a))return [0,1,2].map(i=>a[i]||null)}catch(e){}return [null,null,null]}
+function renderSlots(){const a=getSlots();$('slots').innerHTML=a.map((d,i)=>{let info='Empty';if(d){const n=(d.strings||[]).filter(x=>x.pts&&x.pts.length).length;const when=new Date(d.t).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});info=`${n} string${n===1?'':'s'} drawn · saved ${when}`}
+  const armed=slotArm.i===i&&Date.now()-slotArm.t<3000;return `<div class="slot"><div>Slot ${i+1}<small>${info}</small></div><button data-save="${i}">${armed?'Click again to overwrite':'Save'}</button><button data-load="${i}">Load</button></div>`}).join('')}
+$('slots').addEventListener('click',e=>{const sv=e.target.closest('[data-save]'),ld=e.target.closest('[data-load]');const a=getSlots();
+  if(sv){const i=+sv.dataset.save;if(a[i]&&!(slotArm.i===i&&Date.now()-slotArm.t<3000)){slotArm={i,t:Date.now()};renderSlots();setTimeout(renderSlots,3100);return}
+    a[i]={cfg,strings,t:Date.now()};slotArm={i:-1,t:0};try{localStorage.setItem(SKEY,JSON.stringify(a));$('ioMsg').textContent=`Saved to slot ${i+1}.`}catch(err){$('ioMsg').textContent="Couldn't save. This browser is blocking storage."}renderSlots();return}
+  if(ld){const i=+ld.dataset.load;if(!a[i]){$('ioMsg').textContent=`Slot ${i+1} is empty. Save a layout to it first.`;return}
+    pushHist();applyData(JSON.parse(JSON.stringify(a[i])));active=null;fillCfg();fit();changed();$('ioMsg').textContent=`Loaded slot ${i+1}. Undo goes back to what you had.`}});
+renderSlots();
 $('copyOut').onclick=async()=>{const t=JSON.stringify({cfg,strings});$('io').value=t;try{await navigator.clipboard.writeText(t);$('ioMsg').textContent='Copied to your clipboard.'}catch(e){$('ioMsg').textContent='Layout is in the box above; select it and copy.'}};
 $('loadIn').onclick=()=>{try{const d=JSON.parse($('io').value);if(!d||!d.cfg||!Array.isArray(d.strings))throw 0;pushHist();applyData(d);fillCfg();fit();changed();$('ioMsg').textContent='Layout loaded.'}catch(e){$('ioMsg').textContent="That text isn't a layout from this planner. Copy one with Copy layout first."}};
 
