@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fence light planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EDF0EC;--panel:#FFFFFF;--ink:#1B2427;--mute:#5A6668;--line:#D3D9D5;--chip:#E2E7E3;--cedar:#7B5338;--board:rgba(0,0,0,.13);--rail:rgba(255,255,255,.22);--focus:#2C74C9;--danger:#C2362F;--path:rgba(255,255,255,.55)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111718;--panel:#1A2224;--ink:#E4E9E6;--mute:#98A4A1;--line:#2B3638;--chip:#243033;--cedar:#4B3324;--board:rgba(0,0,0,.28);--rail:rgba(255,255,255,.12);--focus:#6EA9EE;--danger:#F06A61;--path:rgba(255,255,255,.4)}}
+:root[data-theme="dark"]{--bg:#111718;--panel:#1A2224;--ink:#E4E9E6;--mute:#98A4A1;--line:#2B3638;--chip:#243033;--cedar:#4B3324;--board:rgba(0,0,0,.28);--rail:rgba(255,255,255,.12);--focus:#6EA9EE;--danger:#F06A61;--path:rgba(255,255,255,.4)}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1400px;margin:0 auto;padding:20px 20px 40px}
+h1{font-family:"Bricolage Grotesque","Instrument Sans",system-ui,sans-serif;font-weight:600;font-size:28px;line-height:1.1;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:15px;font-weight:600;margin:0 0 10px}
+p.lede{margin:0 0 16px;color:var(--mute);max-width:70ch}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+button,select,input{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 11px;cursor:pointer;line-height:1.3}
+button:hover{border-color:var(--mute)}
+button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+input[type=number],input[type=text],select,textarea{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;width:100%}
+input[type=range]{width:120px;accent-color:var(--focus)}
+.sep{width:1px;height:24px;background:var(--line);margin:0 4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px}
+.dot{width:11px;height:11px;border-radius:50%;flex:none}
+.wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px}
+canvas{display:block;touch-action:none;cursor:crosshair}
+#status{font-size:14px;margin:10px 2px 4px;min-height:22px}
+.hint{font-size:13px;color:var(--mute);margin:0 2px 18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-bottom:8px}
+label{font-size:13px;color:var(--mute);display:block}
+label input,label select{margin-top:3px;color:var(--ink)}
+.strings{display:flex;flex-direction:column;gap:4px}
+.srow{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.srow.on{border-color:var(--line);background:var(--chip)}
+.srow small{color:var(--mute);font-size:12px}
+.over{color:var(--danger)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--chip);border-radius:8px;padding:8px 10px}
+.stat b{display:block;font-size:20px;font-weight:600}
+.stat span{font-size:12px;color:var(--mute)}
+.gen{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.gen:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px;margin-bottom:8px}
+input:disabled{opacity:.55}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink)}
+.check input{width:auto;margin:0}
+textarea{min-height:70px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<h1>Fence light planner</h1>
+<p class="lede">Lay out each string's path across the fence in straight runs and right-angle turns. Bulbs are placed at their real spacing along the path, and each string's length is tracked against its limit.</p>
+
+<div class="bar">
+  <div class="chips" id="chips" role="group" aria-label="Choose string"></div>
+  <button id="deselect">Deselect</button>
+</div>
+<div class="bar">
+  <button id="undo">Undo</button>
+  <button id="popPt">Remove last point</button>
+  <button id="clearStr">Clear string</button>
+  <button id="clearAll">Clear all</button>
+  <span class="sep"></span>
+  <button id="zOut" aria-label="Zoom out">−</button>
+  <button id="zIn" aria-label="Zoom in">+</button>
+  <button id="zFit">Fit fence</button>
+  <span id="zLbl" style="font-size:13px;color:var(--mute);min-width:44px"></span>
+  <span class="sep"></span>
+  <label style="display:flex;align-items:center;gap:8px;color:var(--mute)">Height stretch <input type="range" id="ex" min="1" max="8" step="0.5" value="4"></label>
+</div>
+
+<div class="wrap" id="wrap"><canvas id="cv"></canvas></div>
+<div id="status" aria-live="polite"></div>
+<p class="hint">With a string picked, click to lay its path. Lines lock to horizontal or vertical. Drag a point or a whole row to move it; rows move up and down, columns move left and right. Right-click or Esc deselects the string so you can grab any point on any string, or drag empty space to pan. Scroll or pinch to zoom; hold Space or use the middle button to pan. Hold Ctrl to place without snapping. Alt-click a point to cut the string from there on. Tab and Shift+Tab step to the next or previous string.</p>
+
+<div class="grid">
+  <section class="card">
+    <h2>Strings</h2>
+    <div class="strings" id="slist"></div>
+  </section>
+
+  <section class="card">
+    <h2>Build tools</h2>
+    <p class="hint" style="margin:0 0 10px">Each tool adds to the end of the picked string. An empty string starts at the left end at the start height.</p>
+    <div class="row"><label>Start height (in from top)<input type="number" id="gStartY" value="4" step="1"></label><div></div></div>
+    <div class="gen"><div class="row"><label>Run to (ft)<input type="number" id="gRunX" value="64" step="0.5"></label><div></div></div><button id="gRun">Add row</button></div>
+    <div class="gen"><div class="row"><label>Drop by (in, minus raises)<input type="number" id="gDy" value="4" step="1"></label><div></div></div><button id="gDrop">Add drop</button></div>
+    <div class="gen"><div class="row3"><label>Start (ft)<input type="number" id="gGA" value="0" step="0.5"></label><label>End (ft)<input type="number" id="gGB" value="64" step="0.5"></label><label>Drop (in)<input type="number" id="gGD" value="4" step="1"></label></div><button id="gGrid">Fill grid to end of string</button></div>
+    <div class="gen"><div class="row3"><label>Row gap (in)<input type="number" id="gRG" value="4" step="1"></label><label>Rows<input type="number" id="gRN" value="2" step="1" min="1"></label><label>Far end (ft)<input type="number" id="gRX" value="64" step="0.5"></label></div><button id="gRows">Add row weave</button></div>
+    <div class="gen"><div class="row3"><label>Column gap (in)<input type="number" id="gWS" value="5" step="1"></label><label>Top (in)<input type="number" id="gWT" value="4" step="1"></label><label>Bottom (in)<input type="number" id="gWB" value="68" step="1"></label></div><div class="row"><label>To (ft)<input type="number" id="gWX" value="8" step="0.5"></label><div></div></div><button id="gWeave">Add column weave</button></div>
+    <div id="genErr" class="hint over" style="margin:8px 0 0"></div>
+  </section>
+
+  <section class="card">
+    <h2>Spacing check</h2>
+    <div class="stats" id="stats"></div>
+    <p class="hint" style="margin:10px 0 0">Nearest-neighbor distance between bulbs on the fence. Bulbs closer than the threshold are ringed in red.</p>
+  </section>
+
+  <section class="card">
+    <h2>Fence and strings</h2>
+    <div class="row"><label>Fence length (ft)<input type="number" id="cL" min="4" step="0.5"></label><label>Fence height (ft)<input type="number" id="cH" min="1" step="0.5"></label></div>
+    <div class="row"><label>String length (ft)<input type="number" id="cS" min="1" step="0.5"></label><label>Bulbs per string<input type="number" id="cB" min="1" step="1"></label></div>
+    <div class="row"><label>Number of strings<input type="number" id="cN" min="1" max="12" step="1"></label><label>Post spacing (ft, 0 = none)<input type="number" id="cPost" min="0" step="0.5"></label></div>
+    <div class="row"><label>Sideways snap (in)<input type="number" id="cSnapX" min="1" step="1"></label><label>Vertical grid offset (in)<input type="number" id="cOff" step="1"></label></div>
+    <label class="check" style="margin-bottom:8px"><input type="checkbox" id="cYAuto"> Vertical grid matches bulb spacing, rounded (<span id="pitchLbl"></span>)</label>
+    <div class="row"><label>Custom vertical grid (in)<input type="number" id="cSnapY" min="1" step="1"></label><label>Too close under (in)<input type="number" id="cClose" min="0" step="1"></label></div>
+    <label class="check" style="margin-bottom:6px"><input type="checkbox" id="cMagRows"> Snap to existing rows, columns, and posts</label>
+    <label class="check"><input type="checkbox" id="cLeft"> Strings start at the left end</label>
+    <div id="cfgErr" class="hint over" style="margin:8px 0 0"></div>
+  </section>
+
+  <section class="card">
+    <h2>Save and share</h2>
+    <p class="hint" style="margin:0 0 8px">Your layout saves in this browser automatically. Copy it to keep a backup, or paste one in to load it.</p>
+    <textarea id="io" aria-label="Layout data"></textarea>
+    <div class="bar" style="margin:8px 0 0"><button id="copyOut">Copy layout</button><button id="loadIn">Load pasted layout</button></div>
+    <div id="ioMsg" class="hint" style="margin:6px 0 0"></div>
+  </section>
+</div>
+</main>
+
+<script>
+const COLORS=['#3CC99B','#9C8DFF','#FF7B5A','#FF6EA9','#4FA9FF','#F2B53B','#8FD24C','#E6E6E6','#27C4D8','#C97EFF','#FF9F45','#B9F25C'];
+const KEY='fence-light-planner-v1';
+const PADX=30,PADT=30,PADB=34,MAG=10;
+let cfg={v:2,L:64,H:6,sLen:165,bulbs:500,n:8,posts:8,snapX:4,yAuto:true,snapY:4,gridOff:0,close:2.5,mag:true,startLeft:true,ex:4};
+let strings=[],cur=0,hist=[],active=null,view={zoom:1,ox:PADX,oy:PADT},geo={bx:1,sx:1,sy:1,W:600,H:300};
+let readout=null,mode=null,dragInfo=null,hover=null,guide={},raf=0,spaceDown=false,ctrlDown=false;
+const ptrs=new Map();let pinch=null,panLast=null;
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+
+const Lin=()=>cfg.L*12,Hin=()=>cfg.H*12,maxLen=()=>cfg.sLen*12,pitch=()=>maxLen()/cfg.bulbs;
+const yStep=()=>Math.max(1,Math.round(cfg.yAuto?pitch():cfg.snapY));
+function ensure(){while(strings.length<cfg.n)strings.push({pts:[],vis:true});strings.length=cfg.n;if(cur>=cfg.n)cur=cfg.n-1}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({cfg,strings}))}catch(e){}}
+function applyData(d){const c=Object.assign({},d.cfg);if(c.posts==null&&c.panel!=null)c.posts=c.panel;if(c.snapX==null&&c.snap!=null)c.snapX=c.snap;
+  ['panel','snap','zoom','tool'].forEach(k=>delete c[k]);if(!c.v){if(c.snapX==null||c.snapX===1)c.snapX=4;c.v=2}cfg=Object.assign(cfg,c);
+  strings=d.strings.map(s=>({pts:simplify((s.pts||[]).map(p=>clampPt({x:+p.x,y:+p.y}))),vis:s.vis!==false}));ensure()}
+function load(){try{const d=JSON.parse(localStorage.getItem(KEY)||'null');if(d&&d.cfg&&Array.isArray(d.strings))applyData(d)}catch(e){}ensure()}
+function pushHist(){hist.push(JSON.stringify(strings));if(hist.length>200)hist.shift()}
+function undo(){if(!hist.length)return;strings=JSON.parse(hist.pop());ensure();active=null;changed()}
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+function clampPt(p){return {x:clamp(Math.round(p.x),0,Lin()),y:clamp(Math.round(p.y),0,Hin())}}
+const isH=(a,b)=>Math.abs(a.y-b.y)<=Math.abs(a.x-b.x);
+function simplify(pts){const o=[];for(const p of pts){const l=o[o.length-1];if(l&&Math.abs(l.x-p.x)<1e-6&&Math.abs(l.y-p.y)<1e-6)continue;o.push({x:p.x,y:p.y});
+  while(o.length>=3){const a=o[o.length-3],b=o[o.length-2],c=o[o.length-1];const col=(Math.abs(a.y-b.y)<1e-6&&Math.abs(b.y-c.y)<1e-6)||(Math.abs(a.x-b.x)<1e-6&&Math.abs(b.x-c.x)<1e-6);if(col)o.splice(o.length-2,1);else break}}return o}
+function plen(pts){let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);return L}
+function walk(pts,step,limit){const out=[];if(!pts.length)return out;if(pts.length===1)return [{...pts[0]}];let need=0,acc=0;
+  for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],sl=Math.hypot(b.x-a.x,b.y-a.y);
+    while(need<=acc+sl+1e-9&&out.length<limit){const t=sl?(need-acc)/sl:0;out.push({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});need+=step}
+    acc+=sl;if(out.length>=limit)break}return out}
+function cutAt(pts,L){let acc=0;for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],sl=Math.hypot(b.x-a.x,b.y-a.y);if(acc+sl>=L){const t=sl?(L-acc)/sl:0;return {i,pt:{x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t}}}acc+=sl}return null}
+const fmtFt=inch=>(inch/12).toFixed(1)+' ft';
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+
+function layout(){const W=Math.max(300,$('wrap').clientWidth-12);geo.W=W;geo.bx=(W-2*PADX)/Lin();geo.sx=geo.bx*view.zoom;geo.sy=geo.sx*cfg.ex;
+  const fitH=PADT+Hin()*geo.bx*cfg.ex+PADB;geo.H=Math.round(clamp(fitH,260,Math.max(320,window.innerHeight*0.72)))}
+function fit(){view.zoom=1;layout();view.ox=PADX;view.oy=Math.max(PADT,(geo.H-PADB-Hin()*geo.sy+PADT)/2);schedule()}
+const X=x=>view.ox+x*geo.sx,Y=y=>view.oy+y*geo.sy;
+function zoomAt(px,py,f){layout();const fx=(px-view.ox)/geo.sx,fy=(py-view.oy)/geo.sy;view.zoom=clamp(view.zoom*f,0.5,80);layout();view.ox=px-fx*geo.sx;view.oy=py-fy*geo.sy;schedule()}
+
+function postXs(){const a=[0,Lin()];if(cfg.posts>0)for(let x=cfg.posts*12;x<Lin()-1e-6;x+=cfg.posts*12)a.push(x);return a}
+function segTargets(skip){const rows=[],cols=[];strings.forEach((s,k)=>{if(!s.vis)return;for(let i=0;i+1<s.pts.length;i++){if(skip&&skip(k,i))continue;const a=s.pts[i],b=s.pts[i+1];
+  if(Math.abs(a.y-b.y)<1e-6)rows.push(a.y);else if(Math.abs(a.x-b.x)<1e-6)cols.push(a.x)}});return {rows,cols}}
+function snapX(x,skip){if(ctrlDown)return clamp(Math.round(x),0,Lin());if(cfg.mag){const c=[...postXs(),...segTargets(skip).cols];let best=null,bd=MAG;for(const v of c){const d=Math.abs(v-x)*geo.sx;if(d<bd){bd=d;best=v}}if(best!=null){guide.x=best;return Math.round(best)}}
+  const sn=Math.max(1,Math.round(cfg.snapX||1));return clamp(Math.round(x/sn)*sn,0,Lin())}
+function snapY(y,skip){if(ctrlDown)return clamp(Math.round(y),0,Hin());if(cfg.mag){let best=null,bd=MAG;for(const v of segTargets(skip).rows){const d=Math.abs(v-y)*geo.sy;if(d<bd){bd=d;best=v}}if(best!=null){guide.y=best;return Math.round(best)}}
+  const st=yStep();const off=Math.round(cfg.gridOff||0);let v=Math.round((y-off)/st)*st+off;if(v<0)v+=st;if(v>Hin())v-=st;return clamp(v,0,Hin())}
+
+function changed(){save();renderPanels();schedule()}
+function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;draw()})}
+const visKs=()=>cur>=0?[cur]:strings.map((s,k)=>k).filter(k=>strings[k].vis);
+
+function draw(){
+  layout();const dpr=window.devicePixelRatio||1,W=geo.W,H=geo.H,sx=geo.sx,sy=geo.sy;
+  cv.style.width=W+'px';cv.style.height=H+'px';cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+  ctx.save();ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();
+  ctx.fillStyle=css('--cedar');ctx.fillRect(X(0),Y(0),Lin()*sx,Hin()*sy);
+  if(5.5*sx>=3){ctx.strokeStyle=css('--board');ctx.lineWidth=1;ctx.beginPath();for(let x=5.5;x<Lin();x+=5.5){const px=Math.round(X(x))+.5;if(px<-2||px>W+2)continue;ctx.moveTo(px,Y(0));ctx.lineTo(px,Y(Hin()))}ctx.stroke()}
+  const st=yStep();if(st*sy>=5){ctx.strokeStyle=css('--rail');ctx.lineWidth=1;ctx.globalAlpha=.55;ctx.beginPath();const off=Math.round(cfg.gridOff||0);for(let y=((off%st)+st)%st;y<=Hin()+1e-6;y+=st){const py=Math.round(Y(y))+.5;ctx.moveTo(Math.max(0,X(0)),py);ctx.lineTo(Math.min(W,X(Lin())),py)}ctx.stroke();ctx.globalAlpha=1}
+  const pw=Math.max(3,3.5*sx);ctx.fillStyle='rgba(20,12,6,.55)';postXs().forEach(x=>{const px=x===0?X(0):x>=Lin()-1e-6?X(Lin())-pw:X(x)-pw/2;ctx.fillRect(px,Y(0)-4,pw,Hin()*sy+8)});
+  const ink=css('--ink'),mute=css('--mute');ctx.font='12px "Instrument Sans",system-ui,sans-serif';ctx.fillStyle=mute;ctx.textBaseline='top';
+  postXs().sort((a,b)=>a-b).forEach(x=>{const px=X(x);if(px<-20||px>W+20)return;ctx.textAlign=x===0?'left':x>=Lin()-1e-6?'right':'center';ctx.fillText(+(x/12).toFixed(1)+' ft',px,Y(Hin())+10)});
+  const all=[],P=pitch(),M=maxLen();
+  strings.forEach((s,k)=>{if(!s.vis||!s.pts.length)return;const c=COLORS[k%COLORS.length],isCur=k===cur;
+    ctx.strokeStyle=c;ctx.globalAlpha=isCur?.8:(cur<0?.6:.3);ctx.lineWidth=isCur?1.8:1.1;ctx.beginPath();s.pts.forEach((p,i)=>i?ctx.lineTo(X(p.x),Y(p.y)):ctx.moveTo(X(p.x),Y(p.y)));ctx.stroke();ctx.globalAlpha=1;
+    const L=plen(s.pts);if(L>M){const ct=cutAt(s.pts,M);ctx.strokeStyle=css('--danger');ctx.lineWidth=2.5;ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(X(ct.pt.x),Y(ct.pt.y));for(let i=ct.i;i<s.pts.length;i++)ctx.lineTo(X(s.pts[i].x),Y(s.pts[i].y));ctx.stroke();ctx.setLineDash([])}
+    const b=walk(s.pts,P,cfg.bulbs);const r=clamp(P*sx*.3,1.5,6);ctx.fillStyle=c;
+    b.forEach(q=>{all.push({x:q.x,y:q.y,k});const px=X(q.x),py=Y(q.y);if(px<-8||px>W+8||py<-8||py>H+8)return;ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.fill()});
+    const s0=s.pts[0];ctx.strokeStyle=c;ctx.lineWidth=2;ctx.beginPath();ctx.arc(X(s0.x),Y(s0.y),7,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=ink;ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(String(k+1),X(s0.x)-10,Y(s0.y));ctx.textBaseline='top'});
+  const sp=spacing(all);
+  if(cfg.close>0){ctx.strokeStyle=css('--danger');ctx.lineWidth=1.5;sp.close.forEach(q=>{ctx.beginPath();ctx.arc(X(q.x),Y(q.y),6,0,Math.PI*2);ctx.stroke()})}
+  ctx.lineWidth=1.5;visKs().forEach(k=>{strings[k].pts.forEach((p,i)=>{const on=active&&active.k===k&&active.i===i;ctx.fillStyle=on?css('--focus'):ink;ctx.strokeStyle=css('--panel');ctx.beginPath();ctx.rect(X(p.x)-(on?5:3.5),Y(p.y)-(on?5:3.5),on?10:7,on?10:7);ctx.fill();ctx.stroke()})});
+  ctx.strokeStyle=css('--focus');ctx.lineWidth=1;ctx.setLineDash([5,4]);
+  if(guide.y!=null){ctx.beginPath();ctx.moveTo(X(0),Y(guide.y));ctx.lineTo(X(Lin()),Y(guide.y));ctx.stroke()}
+  if(guide.x!=null){ctx.beginPath();ctx.moveTo(X(guide.x),Y(0));ctx.lineTo(X(guide.x),Y(Hin()));ctx.stroke()}
+  ctx.setLineDash([]);
+  if(!mode&&hover&&cur>=0){const q=hover.q,last=strings[cur].pts[strings[cur].pts.length-1];ctx.strokeStyle=COLORS[cur%COLORS.length];ctx.setLineDash([4,4]);ctx.lineWidth=1.8;
+    if(last){ctx.beginPath();ctx.moveTo(X(last.x),Y(last.y));ctx.lineTo(X(q.x),Y(q.y));ctx.stroke()}ctx.setLineDash([]);ctx.beginPath();ctx.arc(X(q.x),Y(q.y),4.5,0,Math.PI*2);ctx.stroke()}
+  if(readout){const ft=v=>{v=Math.round(v);const neg=v<0;v=Math.abs(v);const f=Math.floor(v/12),i=v-f*12;return (neg?'−':'')+(f?`${f}′ ${i}″`:`${i}″`)};
+    const lines=[`x ${readout.x}″ (${ft(readout.x)})   y ${readout.y}″`];let warn=false;
+    const ks=mode&&dragInfo?dragInfo.k:cur;
+    if(ks>=0){const sp=strings[ks].pts,used=plen(sp),left=maxLen()-used;
+      if(!mode&&hover&&sp.length){const l=sp[sp.length-1],run=Math.hypot(readout.x-l.x,readout.y-l.y);warn=run>left;
+        lines.push(`From last point: ${ft(run)} (${Math.floor(run/pitch())} bulbs)`);lines.push(run>left?`${ft(run-left)} past the end of the string`:`${ft(left-run)} of string left after this`)}
+      else lines.push(left>=0?`String ${ks+1}: ${ft(used)} used, ${ft(left)} left`:`String ${ks+1}: ${ft(-left)} over`),warn=left<0}
+    ctx.font='500 12px "Instrument Sans",system-ui,sans-serif';
+    const w=Math.max(...lines.map(t=>ctx.measureText(t).width))+14,h=lines.length*17+8;
+    let lx=X(readout.x)+14,ly=Y(readout.y)-h-8;if(lx+w>W-4)lx=X(readout.x)-14-w;if(ly<4)ly=Y(readout.y)+12;
+    ctx.fillStyle=css('--panel');ctx.strokeStyle=warn?css('--danger'):css('--line');ctx.lineWidth=1;ctx.beginPath();ctx.rect(lx,ly,w,h);ctx.fill();ctx.stroke();
+    ctx.textAlign='left';ctx.textBaseline='middle';lines.forEach((t,n)=>{ctx.fillStyle=n&&warn?css('--danger'):(n?mute:ink);ctx.fillText(t,lx+7,ly+12+n*17)});ctx.textBaseline='top';
+    ctx.strokeStyle=ink;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(X(readout.x)-5,Y(readout.y));ctx.lineTo(X(readout.x)+5,Y(readout.y));ctx.moveTo(X(readout.x),Y(readout.y)-5);ctx.lineTo(X(readout.x),Y(readout.y)+5);ctx.stroke()}
+  ctx.restore();
+  $('zLbl').textContent=Math.round(view.zoom*100)+'%';
+  renderStats(sp,all.length);renderStatus();
+}
+
+function spacing(all){const res={min:null,med:null,max:null,close:[]};if(all.length<2)return res;const cell=6,g=new Map(),key=(i,j)=>i+','+j;
+  all.forEach((p,idx)=>{const k=key(Math.floor(p.x/cell),Math.floor(p.y/cell));if(!g.has(k))g.set(k,[]);g.get(k).push(idx)});const d=[];
+  all.forEach((p,idx)=>{let best=Infinity;const ci=Math.floor(p.x/cell),cj=Math.floor(p.y/cell);
+    for(let R=1;R<=10;R++){for(let i=ci-R;i<=ci+R;i++)for(let j=cj-R;j<=cj+R;j++){if(Math.max(Math.abs(i-ci),Math.abs(j-cj))<R-1)continue;const a=g.get(key(i,j));if(!a)continue;for(const o of a){if(o===idx)continue;const q=all[o];const dd=Math.hypot(q.x-p.x,q.y-p.y);if(dd<best)best=dd}}if(best<=R*cell)break}
+    if(best<Infinity){d.push(best);if(best<cfg.close)res.close.push(p)}});
+  if(!d.length)return res;d.sort((a,b)=>a-b);res.min=d[0];res.max=d[d.length-1];res.med=d[Math.floor(d.length/2)];return res}
+function renderStats(sp,n){const f=v=>v==null?'–':Math.round(v)+'″';
+  $('stats').innerHTML=`<div class="stat"><b>${n}</b><span>Bulbs on fence</span></div><div class="stat"><b>${f(sp.min)}</b><span>Closest pair</span></div><div class="stat"><b>${f(sp.med)}</b><span>Typical gap</span></div><div class="stat"><b>${f(sp.max)}</b><span>Largest gap</span></div><div class="stat"><b class="${sp.close.length?'over':''}">${sp.close.length}</b><span>Too close</span></div><div class="stat"><b>${pitch().toFixed(2)}″</b><span>Bulb spacing</span></div>`}
+let flash='';
+function renderStatus(){
+  if(flash){$('status').textContent=flash;return}
+  if(cur<0){$('status').textContent='No string picked. Drag any point or row to move it, or drag empty space to pan. Pick a string to keep drawing.';return}
+  const s=strings[cur],L=plen(s.pts),M=maxLen(),b=walk(s.pts,pitch(),cfg.bulbs).length,left=M-L;let extra='';
+  if(!mode&&hover&&s.pts.length){const l=s.pts[s.pts.length-1],q=hover.q;extra=` · next point adds ${(Math.hypot(q.x-l.x,q.y-l.y)/12).toFixed(1)} ft`}
+  $('status').innerHTML=`<span style="display:inline-flex;align-items:center;gap:6px;font-weight:600"><span class="dot" style="background:${COLORS[cur%COLORS.length]}"></span>String ${cur+1}</span>&nbsp; ${fmtFt(L)} of ${fmtFt(M)} used, ${b} of ${cfg.bulbs} bulbs placed, <span class="${left<0?'over':''}">${left<0?fmtFt(-left)+' over the limit':fmtFt(left)+' left'}</span>${extra}`}
+function say(m){flash=m;schedule();clearTimeout(say.t);say.t=setTimeout(()=>{flash='';schedule()},3500)}
+
+function renderPanels(){
+  $('chips').innerHTML=strings.map((s,k)=>`<button class="chip" data-k="${k}" aria-pressed="${k===cur}"><span class="dot" style="background:${COLORS[k%COLORS.length]}"></span>String ${k+1}</button>`).join('');
+  const M=maxLen();
+  $('slist').innerHTML=strings.map((s,k)=>{const L=plen(s.pts),b=walk(s.pts,pitch(),cfg.bulbs).length;
+    return `<div class="srow ${k===cur?'on':''}" data-k="${k}"><span class="dot" style="background:${COLORS[k%COLORS.length]}"></span><div>String ${k+1}<br><small class="${L>M?'over':''}">${fmtFt(L)} · ${b} bulbs${L>M?' · over by '+fmtFt(L-M):''}</small></div><small>${s.pts.length} pts</small><button data-vis="${k}" aria-label="${s.vis?'Hide':'Show'} string ${k+1}">${s.vis?'Hide':'Show'}</button></div>`}).join('');
+  $('pitchLbl').textContent=yStep()+'″';$('cSnapY').disabled=!!cfg.yAuto;
+}
+
+function toFence(e){const r=cv.getBoundingClientRect();return {sx:e.clientX-r.left,sy:e.clientY-r.top,x:(e.clientX-r.left-view.ox)/geo.sx,y:(e.clientY-r.top-view.oy)/geo.sy}}
+function hitPoint(p){let best=null,bd=9;visKs().forEach(k=>strings[k].pts.forEach((q,i)=>{const d=Math.hypot(X(q.x)-p.sx,Y(q.y)-p.sy);if(d<bd){bd=d;best={k,i}}}));return best}
+function hitSeg(p){let best=null,bd=7;visKs().forEach(k=>{const s=strings[k].pts;for(let i=0;i+1<s.length;i++){const ax=X(s[i].x),ay=Y(s[i].y),bx=X(s[i+1].x),by=Y(s[i+1].y);const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;if(!l2)continue;
+  let t=((p.sx-ax)*dx+(p.sy-ay)*dy)/l2;if(t<0||t>1)continue;const d=Math.hypot(ax+t*dx-p.sx,ay+t*dy-p.sy);if(d<bd){bd=d;best={k,i,h:isH(s[i],s[i+1])}}}});return best}
+function nextPt(p){const s=strings[cur].pts;guide={};if(!s.length){return {x:cfg.startLeft?0:snapX(p.x),y:snapY(p.y)}}
+  const l=s[s.length-1];if(Math.abs(p.x-l.x)*geo.sx>=Math.abs(p.y-l.y)*geo.sy)return {x:snapX(p.x),y:l.y};return {x:l.x,y:snapY(p.y)}}
+
+function movePoint(k,i,raw){const s=strings[k].pts,o=dragInfo.orig,n=s.length;guide={};
+  const skip=(kk,ii)=>kk===k&&(ii===i||ii===i-1||ii===i-2||ii===i+1);
+  let q={x:snapX(raw.x,skip),y:snapY(raw.y,skip)};
+  const vPrev=i>0&&!isH(o[i-1],o[i]),vNext=i<n-1&&!isH(o[i],o[i+1]);
+  if(cfg.startLeft&&(i===0||(i===1&&vPrev)))q.x=0;
+  for(let j=0;j<n;j++){s[j].x=o[j].x;s[j].y=o[j].y}
+  s[i].x=q.x;s[i].y=q.y;
+  if(i>0){if(vPrev)s[i-1].x=q.x;else s[i-1].y=q.y}
+  if(i<n-1){if(vNext)s[i+1].x=q.x;else s[i+1].y=q.y}}
+function moveSeg(k,i,raw){const s=strings[k].pts,o=dragInfo.orig;guide={};for(let j=0;j<s.length;j++){s[j].x=o[j].x;s[j].y=o[j].y}
+  const skip=(kk,ii)=>kk===k&&ii>=i-1&&ii<=i+1;
+  if(dragInfo.h){const y=snapY(raw.y,skip);s[i].y=y;s[i+1].y=y}
+  else{if(cfg.startLeft&&i===0)return;const x=snapX(raw.x,skip);s[i].x=x;s[i+1].x=x}}
+
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('pointerdown',e=>{
+  if(e.button===2){cur=-1;active=null;hover=null;guide={};renderPanels();schedule();return}
+  cv.setPointerCapture(e.pointerId);const p=toFence(e);ptrs.set(e.pointerId,{x:p.sx,y:p.sy});
+  if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y),mx:(a.x+b.x)/2,my:(a.y+b.y)/2};if(mode==='pt'||mode==='seg'){undo()}mode='pinch';return}
+  if(e.button===1||spaceDown){mode='pan';panLast={x:p.sx,y:p.sy};return}
+  if(e.button!==0)return;
+  const hp=hitPoint(p);
+  if(hp&&e.altKey){pushHist();strings[hp.k].pts.length=hp.i;active=null;changed();say(`String ${hp.k+1} cut from that point on.`);return}
+  if(hp){pushHist();active=hp;mode='pt';dragInfo={k:hp.k,i:hp.i,orig:strings[hp.k].pts.map(q=>({...q}))};schedule();return}
+  const hs=hitSeg(p);
+  if(hs){pushHist();active=null;mode='seg';dragInfo={k:hs.k,i:hs.i,h:hs.h,orig:strings[hs.k].pts.map(q=>({...q}))};schedule();return}
+  if(cur>=0){const q=nextPt(p);const s=strings[cur].pts,l=s[s.length-1];if(l&&Math.abs(l.x-q.x)<1e-6&&Math.abs(l.y-q.y)<1e-6)return;pushHist();s.push(q);strings[cur].pts=simplify(s);active=null;changed();return}
+  mode='pan';panLast={x:p.sx,y:p.sy};cv.style.cursor='grabbing'});
+cv.addEventListener('pointermove',e=>{const p=toFence(e);ctrlDown=e.ctrlKey||e.metaKey;if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,{x:p.sx,y:p.sy});
+  if(mode==='pinch'&&ptrs.size>=2){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y),mx=(a.x+b.x)/2,my=(a.y+b.y)/2;view.ox+=mx-pinch.mx;view.oy+=my-pinch.my;if(pinch.d>0)zoomAt(mx,my,d/pinch.d);pinch={d,mx,my};return}
+  if(mode==='pan'){view.ox+=p.sx-panLast.x;view.oy+=p.sy-panLast.y;panLast={x:p.sx,y:p.sy};schedule();return}
+  if(mode==='pt'){movePoint(dragInfo.k,dragInfo.i,p);readout={...strings[dragInfo.k].pts[dragInfo.i]};schedule();return}
+  if(mode==='seg'){moveSeg(dragInfo.k,dragInfo.i,p);readout={...strings[dragInfo.k].pts[dragInfo.i]};schedule();return}
+  if(cur>=0&&!spaceDown){hover={q:nextPt(p)};}else{hover=null;guide={}}
+  const inside=p.x>=0&&p.x<=Lin()&&p.y>=0&&p.y<=Hin();
+  if(!inside||mode==='pan'||spaceDown)readout=null;else if(hover)readout={...hover.q};else{const g0=guide;readout={x:snapX(p.x),y:snapY(p.y)};guide=g0}
+  const hp=hitPoint(p),hs=hp?null:hitSeg(p);cv.style.cursor=spaceDown?'grab':hp?'move':hs?(hs.h?'ns-resize':'ew-resize'):(cur>=0?'crosshair':'grab');schedule()});
+function endPtr(e){ptrs.delete(e.pointerId);if(mode==='pinch'){if(ptrs.size<2){mode=null;pinch=null}return}
+  if(mode==='pt'||mode==='seg'){const k=dragInfo.k;strings[k].pts=simplify(strings[k].pts);if(active&&active.k===k&&active.i>=strings[k].pts.length)active=null;guide={};mode=null;dragInfo=null;changed();return}
+  mode=null;panLast=null}
+cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
+cv.addEventListener('pointerleave',()=>{readout=null;if(!mode){hover=null;guide={}}schedule()});
+cv.addEventListener('wheel',e=>{e.preventDefault();const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
+  if(e.ctrlKey||(!e.shiftKey&&Math.abs(e.deltaY)>=Math.abs(e.deltaX))){zoomAt(px,py,Math.exp(-e.deltaY*(e.ctrlKey?0.01:0.0015)))}
+  else{view.ox-=e.deltaX||e.deltaY;schedule()}},{passive:false});
+
+$('chips').addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(!b)return;cur=+b.dataset.k;active=null;renderPanels();schedule()});
+$('slist').addEventListener('click',e=>{const v=e.target.closest('[data-vis]');if(v){const k=+v.dataset.vis;strings[k].vis=!strings[k].vis;changed();return}const r=e.target.closest('[data-k]');if(r){cur=+r.dataset.k;active=null;renderPanels();schedule()}});
+$('deselect').onclick=()=>{cur=-1;active=null;hover=null;renderPanels();schedule()};
+$('undo').onclick=undo;
+$('popPt').onclick=()=>{if(cur<0){say('Pick a string first.');return}const s=strings[cur];if(!s.pts.length)return;pushHist();s.pts.pop();active=null;changed()};
+$('clearStr').onclick=()=>{if(cur<0){say('Pick a string first.');return}if(!strings[cur].pts.length)return;pushHist();strings[cur].pts=[];active=null;changed()};
+let clearArm=0;
+$('clearAll').onclick=()=>{if(Date.now()-clearArm<3000){pushHist();strings.forEach(s=>s.pts=[]);clearArm=0;active=null;$('clearAll').textContent='Clear all';changed()}else{clearArm=Date.now();$('clearAll').textContent='Click again to clear all';setTimeout(()=>{if(Date.now()-clearArm>=2900)$('clearAll').textContent='Clear all'},3000)}};
+$('zIn').onclick=()=>zoomAt(geo.W/2,geo.H/2,1.4);
+$('zOut').onclick=()=>zoomAt(geo.W/2,geo.H/2,1/1.4);
+$('zFit').onclick=fit;
+$('ex').oninput=e=>{cfg.ex=+e.target.value;save();fit()};
+
+document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select'))return;
+  if(e.key==='Control'||e.key==='Meta'){ctrlDown=true}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();return}
+  if(e.key===' '){e.preventDefault();spaceDown=true;cv.style.cursor='grab';return}
+  if(e.key==='Escape'){$('deselect').click();return}
+  if(e.key==='Tab'){e.preventDefault();const n=cfg.n;cur=e.shiftKey?(cur<=0?n-1:cur-1):(cur<0?0:(cur+1)%n);active=null;hover=null;readout=null;renderPanels();schedule();return}
+  if(e.key>='1'&&e.key<='9'){const k=+e.key-1;if(k<cfg.n){cur=k;active=null;renderPanels();schedule()}return}
+  if(e.key==='+'||e.key==='='){$('zIn').click();return}
+  if(e.key==='-'){$('zOut').click();return}
+  if(e.key==='0'||e.key==='f'||e.key==='F'){fit();return}
+  if(e.key==='Backspace'){e.preventDefault();$('popPt').click();return}});
+document.addEventListener('keyup',e=>{if(e.key===' ')spaceDown=false;if(e.key==='Control'||e.key==='Meta')ctrlDown=false});
+
+function num(id){const v=parseFloat($(id).value);return Number.isFinite(v)?v:null}
+const inch=id=>{const v=num(id);return v==null?null:Math.round(v)};
+function genErr(m){$('genErr').textContent=m||''}
+function begin(){if(cur<0){genErr('Pick a string first.');return null}const s=strings[cur].pts;pushHist();
+  if(!s.length){const y=inch('gStartY');if(y==null){hist.pop();genErr('Enter a start height.');return null}guide={};s.push(clampPt({x:0,y:snapY(y)}))}return s}
+function finish(){strings[cur].pts=simplify(strings[cur].pts.map(clampPt));active=null;changed()}
+$('gRun').onclick=()=>{genErr();const tx=num('gRunX');if(tx==null){genErr('Enter where the row should end.');return}const s=begin();if(!s)return;const l=s[s.length-1];s.push({x:tx*12,y:l.y});finish()};
+$('gDrop').onclick=()=>{genErr();const dy=inch('gDy');if(dy==null){genErr('Enter how far to drop.');return}const s=begin();if(!s)return;const l=s[s.length-1];s.push({x:l.x,y:l.y+dy});finish()};
+$('gRows').onclick=()=>{genErr();const g=inch('gRG'),n=Math.round(num('gRN')||0),fx=num('gRX');if(!g||n<1||fx==null){genErr('Enter a row gap, at least 1 row, and a far end.');return}
+  const s=begin();if(!s)return;const x0=s[s.length-1].x,far=clamp(fx*12,0,Lin());if(Math.abs(far-x0)<1e-6){hist.pop();genErr('The far end is where the string already is.');return}
+  let y=s[s.length-1].y;for(let r=0;r<n;r++){s.push({x:r%2?x0:far,y});if(r<n-1){y+=g;s.push({x:r%2?x0:far,y})}}finish()};
+$('gGrid').onclick=()=>{genErr();const a=num('gGA'),b=num('gGB'),dr=inch('gGD');
+  if(a==null||b==null||dr==null){genErr('Enter a start, an end, and a drop.');return}if(Math.abs(a-b)<1e-9){genErr('Start and end need to be different.');return}if(!dr){genErr('Enter a drop other than 0.');return}
+  const A=clamp(a*12,0,Lin()),B=clamp(b*12,0,Lin());const s=begin();if(!s)return;let rem=maxLen()-plen(s);
+  if(rem<=1e-6){hist.pop();genErr('This string has no length left.');return}
+  const add=pt=>{const l=s[s.length-1],d=Math.hypot(pt.x-l.x,pt.y-l.y);if(d<=rem){s.push(pt);rem-=d}else{const f=Math.floor(rem),t=f/d;if(f>0)s.push({x:l.x+(pt.x-l.x)*t,y:l.y+(pt.y-l.y)*t});rem=0}return rem>1e-6};
+  let l=s[s.length-1],y=l.y,edge=false,rows=0;
+  if(Math.abs(l.x-A)>1e-6&&Math.abs(l.x-B)>1e-6){if(!add({x:A,y}))return finish()}
+  let target=Math.abs(s[s.length-1].x-A)<1e-6?B:A;
+  for(let g=0;g<1000;g++){const more=add({x:target,y});rows++;if(!more)break;const ny=y+dr;if(ny>Hin()+1e-6||ny<-1e-6){edge=true;break}if(!add({x:target,y:ny}))break;y=ny;target=target===A?B:A}
+  finish();rem=maxLen()-plen(strings[cur].pts);say(edge?`Grid reached the fence edge after ${rows} rows with ${fmtFt(rem)} of string left.`:`Grid filled ${rows} rows and used the whole string.`)};
+$('gWeave').onclick=()=>{genErr();const sp=inch('gWS'),top=inch('gWT'),bot=inch('gWB'),tx=num('gWX');if(!sp||sp<=0||top==null||bot==null||tx==null){genErr('Enter a column gap above 0, top, bottom, and an end point.');return}
+  const s=begin();if(!s)return;const l=s[s.length-1],T=clamp(tx*12,0,Lin()),dir=Math.sign(T-l.x);if(!dir){hist.pop();genErr('The end point is where the string already is.');return}
+  let x=l.x,target=Math.abs(l.y-top)<=Math.abs(l.y-bot)?bot:top;
+  for(let gd=0;gd<3000;gd++){s.push({x,y:target});const nx=x+dir*sp;if(dir>0?nx>T+1e-9:nx<T-1e-9)break;x=nx;s.push({x,y:target});target=target===top?bot:top}finish()};
+
+const cfgMap=[['cL','L'],['cH','H'],['cS','sLen'],['cB','bulbs'],['cN','n'],['cPost','posts'],['cSnapX','snapX'],['cSnapY','snapY'],['cOff','gridOff'],['cClose','close']];
+function fillCfg(){cfgMap.forEach(([id,k])=>$(id).value=cfg[k]);$('cLeft').checked=!!cfg.startLeft;$('cYAuto').checked=!!cfg.yAuto;$('cMagRows').checked=!!cfg.mag;$('ex').value=cfg.ex}
+cfgMap.forEach(([id,k])=>$(id).addEventListener('input',()=>{const v=num(id);$('cfgErr').textContent='';
+  const bad=v==null||(['L','H','sLen','bulbs','n'].includes(k)&&v<=0)||(['posts','snapX','snapY','close'].includes(k)&&v<0);
+  if(bad){$('cfgErr').textContent='Use a number above 0 for sizes and counts.';return}
+  cfg[k]=(k==='bulbs'||k==='n')?Math.max(1,Math.min(k==='n'?12:100000,Math.round(v))):v;ensure();changed()}));
+$('cLeft').onchange=e=>{cfg.startLeft=e.target.checked;changed()};
+$('cYAuto').onchange=e=>{cfg.yAuto=e.target.checked;changed()};
+$('cMagRows').onchange=e=>{cfg.mag=e.target.checked;changed()};
+
+$('copyOut').onclick=async()=>{const t=JSON.stringify({cfg,strings});$('io').value=t;try{await navigator.clipboard.writeText(t);$('ioMsg').textContent='Copied to your clipboard.'}catch(e){$('ioMsg').textContent='Layout is in the box above; select it and copy.'}};
+$('loadIn').onclick=()=>{try{const d=JSON.parse($('io').value);if(!d||!d.cfg||!Array.isArray(d.strings))throw 0;pushHist();applyData(d);fillCfg();fit();changed();$('ioMsg').textContent='Layout loaded.'}catch(e){$('ioMsg').textContent="That text isn't a layout from this planner. Copy one with Copy layout first."}};
+
+let lastW=0;window.addEventListener('resize',()=>{const w=$('wrap').clientWidth;if(w!==lastW){lastW=w;fit()}else schedule()});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',schedule);
+load();fillCfg();renderPanels();lastW=$('wrap').clientWidth;fit();
+</script>
+</body>
+</html>
