@@ -81,6 +81,8 @@ textarea{min-height:70px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,
   <button id="zOut" aria-label="Zoom out">−</button>
   <button id="zIn" aria-label="Zoom in">+</button>
   <button id="zFit">Fit fence</button>
+  <span class="sep"></span>
+  <button id="flipSide" aria-pressed="false">Controller on right</button>
   <span id="zLbl" style="font-size:13px;color:var(--mute);min-width:44px"></span>
   <span class="sep"></span>
   <label style="display:flex;align-items:center;gap:8px;color:var(--mute)">Height stretch <input type="range" id="ex" min="1" max="8" step="0.5" value="4"></label>
@@ -123,7 +125,7 @@ textarea{min-height:70px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,
     <label class="check" style="margin-bottom:8px"><input type="checkbox" id="cYAuto"> Vertical grid matches bulb spacing, rounded (<span id="pitchLbl"></span>)</label>
     <div class="row"><label>Custom vertical grid (in)<input type="number" id="cSnapY" min="1" step="1"></label><label>Too close under (in)<input type="number" id="cClose" min="0" step="1"></label></div>
     <label class="check" style="margin-bottom:6px"><input type="checkbox" id="cMagRows"> Snap to existing rows, columns, and posts</label>
-    <label class="check"><input type="checkbox" id="cLeft"> Strings start at the left end</label>
+    <label class="check"><input type="checkbox" id="cLeft"> Strings start at the controller end</label>
     <div id="cfgErr" class="hint over" style="margin:8px 0 0"></div>
   </section>
 
@@ -143,7 +145,7 @@ textarea{min-height:70px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,
 const COLORS=['#3CC99B','#9C8DFF','#FF7B5A','#FF6EA9','#4FA9FF','#F2B53B','#8FD24C','#E6E6E6','#27C4D8','#C97EFF','#FF9F45','#B9F25C'];
 const KEY='fence-light-planner-v1';
 const PADX=30,PADT=30,PADB=34,MAG=10;
-let cfg={v:2,L:64,H:6,sLen:165,bulbs:500,n:8,posts:8,snapX:4,yAuto:true,snapY:4,gridOff:0,close:2.5,mag:true,startLeft:true,ex:4};
+let cfg={v:2,L:64,H:6,sLen:165,bulbs:500,n:8,posts:8,snapX:4,yAuto:true,snapY:4,gridOff:0,close:2.5,mag:true,startLeft:true,ex:4,side:'left'};
 let strings=[],cur=0,hist=[],active=null,view={zoom:1,ox:PADX,oy:PADT},geo={bx:1,sx:1,sy:1,W:600,H:300};
 let readout=null,mode=null,dragInfo=null,hover=null,guide={},raf=0,spaceDown=false,ctrlDown=false;
 const ptrs=new Map();let pinch=null,panLast=null;
@@ -177,7 +179,8 @@ function css(v){return getComputedStyle(document.documentElement).getPropertyVal
 function layout(){const W=Math.max(300,$('wrap').clientWidth-12);geo.W=W;geo.bx=(W-2*PADX)/Lin();geo.sx=geo.bx*view.zoom;geo.sy=geo.sx*cfg.ex;
   const fitH=PADT+Hin()*geo.bx*cfg.ex+PADB;geo.H=Math.round(clamp(fitH,260,Math.max(320,window.innerHeight*0.72)))}
 function fit(){view.zoom=1;layout();view.ox=PADX;view.oy=Math.max(PADT,(geo.H-PADB-Hin()*geo.sy+PADT)/2);schedule()}
-const X=x=>view.ox+x*geo.sx,Y=y=>view.oy+y*geo.sy;
+const R=()=>cfg.side==='right';
+const X=x=>view.ox+(R()?Lin()-x:x)*geo.sx,Y=y=>view.oy+y*geo.sy;
 function zoomAt(px,py,f){layout();const fx=(px-view.ox)/geo.sx,fy=(py-view.oy)/geo.sy;view.zoom=clamp(view.zoom*f,0.5,80);layout();view.ox=px-fx*geo.sx;view.oy=py-fy*geo.sy;schedule()}
 
 function postXs(){const a=[0,Lin()];if(cfg.posts>0)for(let x=cfg.posts*12;x<Lin()-1e-6;x+=cfg.posts*12)a.push(x);return a}
@@ -197,12 +200,13 @@ function draw(){
   cv.style.width=W+'px';cv.style.height=H+'px';cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
   ctx.save();ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();
-  ctx.fillStyle=css('--cedar');ctx.fillRect(X(0),Y(0),Lin()*sx,Hin()*sy);
+  ctx.fillStyle=css('--cedar');ctx.fillRect(Math.min(X(0),X(Lin())),Y(0),Lin()*sx,Hin()*sy);
   if(5.5*sx>=3){ctx.strokeStyle=css('--board');ctx.lineWidth=1;ctx.beginPath();for(let x=5.5;x<Lin();x+=5.5){const px=Math.round(X(x))+.5;if(px<-2||px>W+2)continue;ctx.moveTo(px,Y(0));ctx.lineTo(px,Y(Hin()))}ctx.stroke()}
-  const st=yStep();if(st*sy>=5){ctx.strokeStyle=css('--rail');ctx.lineWidth=1;ctx.globalAlpha=.55;ctx.beginPath();const off=Math.round(cfg.gridOff||0);for(let y=((off%st)+st)%st;y<=Hin()+1e-6;y+=st){const py=Math.round(Y(y))+.5;ctx.moveTo(Math.max(0,X(0)),py);ctx.lineTo(Math.min(W,X(Lin())),py)}ctx.stroke();ctx.globalAlpha=1}
-  const pw=Math.max(3,3.5*sx);ctx.fillStyle='rgba(20,12,6,.55)';postXs().forEach(x=>{const px=x===0?X(0):x>=Lin()-1e-6?X(Lin())-pw:X(x)-pw/2;ctx.fillRect(px,Y(0)-4,pw,Hin()*sy+8)});
+  const st=yStep();if(st*sy>=5){ctx.strokeStyle=css('--rail');ctx.lineWidth=1;ctx.globalAlpha=.55;ctx.beginPath();const off=Math.round(cfg.gridOff||0);for(let y=((off%st)+st)%st;y<=Hin()+1e-6;y+=st){const py=Math.round(Y(y))+.5;ctx.moveTo(Math.max(0,Math.min(X(0),X(Lin()))),py);ctx.lineTo(Math.min(W,Math.max(X(0),X(Lin()))),py)}ctx.stroke();ctx.globalAlpha=1}
+  const pw=Math.max(3,3.5*sx);ctx.fillStyle='rgba(20,12,6,.55)';postXs().forEach(x=>{const c=X(x),edge=x===0?(R()?1:0):x>=Lin()-1e-6?(R()?0:1):.5,px=c-pw*edge;ctx.fillRect(px,Y(0)-4,pw,Hin()*sy+8)});
   const ink=css('--ink'),mute=css('--mute');ctx.font='12px "Instrument Sans",system-ui,sans-serif';ctx.fillStyle=mute;ctx.textBaseline='top';
-  postXs().sort((a,b)=>a-b).forEach(x=>{const px=X(x);if(px<-20||px>W+20)return;ctx.textAlign=x===0?'left':x>=Lin()-1e-6?'right':'center';ctx.fillText(+(x/12).toFixed(1)+' ft',px,Y(Hin())+10)});
+  postXs().sort((a,b)=>a-b).forEach(x=>{const px=X(x);if(px<-20||px>W+20)return;const lo=Math.min(X(0),X(Lin())),hi=Math.max(X(0),X(Lin()));ctx.textAlign=Math.abs(px-lo)<1?'left':Math.abs(px-hi)<1?'right':'center';ctx.fillText(+(x/12).toFixed(1)+' ft',px,Y(Hin())+10)});
+  ctx.textAlign=R()?'right':'left';ctx.fillStyle=mute;ctx.fillText('Controller end',X(0),Math.max(4,Y(0)-24));
   const all=[],P=pitch(),M=maxLen();
   strings.forEach((s,k)=>{if(!s.vis||!s.pts.length)return;const c=COLORS[k%COLORS.length],isCur=k===cur;
     ctx.strokeStyle=c;ctx.globalAlpha=isCur?.8:(cur<0?.6:.3);ctx.lineWidth=isCur?1.8:1.1;ctx.beginPath();s.pts.forEach((p,i)=>i?ctx.lineTo(X(p.x),Y(p.y)):ctx.moveTo(X(p.x),Y(p.y)));ctx.stroke();ctx.globalAlpha=1;
@@ -210,7 +214,7 @@ function draw(){
     const b=walk(s.pts,P,cfg.bulbs);const r=clamp(P*sx*.3,1.5,6);ctx.fillStyle=c;
     b.forEach(q=>{all.push({x:q.x,y:q.y,k});const px=X(q.x),py=Y(q.y);if(px<-8||px>W+8||py<-8||py>H+8)return;ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.fill()});
     const s0=s.pts[0];ctx.strokeStyle=c;ctx.lineWidth=2;ctx.beginPath();ctx.arc(X(s0.x),Y(s0.y),7,0,Math.PI*2);ctx.stroke();
-    ctx.fillStyle=ink;ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(String(k+1),X(s0.x)-10,Y(s0.y));ctx.textBaseline='top'});
+    ctx.fillStyle=ink;ctx.textAlign=R()?'left':'right';ctx.textBaseline='middle';ctx.fillText(String(k+1),X(s0.x)+(R()?10:-10),Y(s0.y));ctx.textBaseline='top'});
   const sp=spacing(all);
   if(cfg.close>0){ctx.strokeStyle=css('--danger');ctx.lineWidth=1.5;sp.close.forEach(q=>{ctx.beginPath();ctx.arc(X(q.x),Y(q.y),6,0,Math.PI*2);ctx.stroke()})}
   ctx.lineWidth=1.5;visKs().forEach(k=>{strings[k].pts.forEach((p,i)=>{const on=active&&active.k===k&&active.i===i;ctx.fillStyle=on?css('--focus'):ink;ctx.strokeStyle=css('--panel');ctx.beginPath();ctx.rect(X(p.x)-(on?5:3.5),Y(p.y)-(on?5:3.5),on?10:7,on?10:7);ctx.fill();ctx.stroke()})});
@@ -221,7 +225,7 @@ function draw(){
   if(!mode&&hover&&cur>=0){const q=hover.q,last=strings[cur].pts[strings[cur].pts.length-1];ctx.strokeStyle=COLORS[cur%COLORS.length];ctx.setLineDash([4,4]);ctx.lineWidth=1.8;
     if(last){ctx.beginPath();ctx.moveTo(X(last.x),Y(last.y));ctx.lineTo(X(q.x),Y(q.y));ctx.stroke()}ctx.setLineDash([]);ctx.beginPath();ctx.arc(X(q.x),Y(q.y),4.5,0,Math.PI*2);ctx.stroke()}
   if(readout){const ft=v=>{v=Math.round(v);const neg=v<0;v=Math.abs(v);const f=Math.floor(v/12),i=v-f*12;return (neg?'−':'')+(f?`${f}′ ${i}″`:`${i}″`)};
-    const lines=[`x ${readout.x}″ (${ft(readout.x)})   y ${readout.y}″`];let warn=false;
+    const lines=[`${ft(readout.x)} from controller (${readout.x}″)   y ${readout.y}″`];let warn=false;
     const ks=mode&&dragInfo?dragInfo.k:cur;
     if(ks>=0){const sp=strings[ks].pts,used=plen(sp),left=maxLen()-used;
       if(!mode&&hover&&sp.length){const l=sp[sp.length-1],run=Math.hypot(readout.x-l.x,readout.y-l.y);warn=run>left;
@@ -263,7 +267,7 @@ function renderPanels(){
   $('pitchLbl').textContent=yStep()+'″';$('cSnapY').disabled=!!cfg.yAuto;
 }
 
-function toFence(e){const r=cv.getBoundingClientRect();return {sx:e.clientX-r.left,sy:e.clientY-r.top,x:(e.clientX-r.left-view.ox)/geo.sx,y:(e.clientY-r.top-view.oy)/geo.sy}}
+function toFence(e){const r=cv.getBoundingClientRect();return {sx:e.clientX-r.left,sy:e.clientY-r.top,x:(R()?Lin()-(e.clientX-r.left-view.ox)/geo.sx:(e.clientX-r.left-view.ox)/geo.sx),y:(e.clientY-r.top-view.oy)/geo.sy}}
 function hitPoint(p){let best=null,bd=9;visKs().forEach(k=>strings[k].pts.forEach((q,i)=>{const d=Math.hypot(X(q.x)-p.sx,Y(q.y)-p.sy);if(d<bd){bd=d;best={k,i}}}));return best}
 function hitSeg(p){let best=null,bd=7;visKs().forEach(k=>{const s=strings[k].pts;for(let i=0;i+1<s.length;i++){const ax=X(s[i].x),ay=Y(s[i].y),bx=X(s[i+1].x),by=Y(s[i+1].y);const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;if(!l2)continue;
   let t=((p.sx-ax)*dx+(p.sy-ay)*dy)/l2;if(t<0||t>1)continue;const d=Math.hypot(ax+t*dx-p.sx,ay+t*dy-p.sy);if(d<bd){bd=d;best={k,i,h:isH(s[i],s[i+1])}}}});return best}
@@ -369,11 +373,12 @@ $('gWeave').onclick=()=>{genErr();const sp=inch('gWS'),top=inch('gWT'),bot=inch(
   for(let gd=0;gd<3000;gd++){s.push({x,y:target});const nx=x+dir*sp;if(dir>0?nx>T+1e-9:nx<T-1e-9)break;x=nx;s.push({x,y:target});target=target===top?bot:top}finish()};
 
 const cfgMap=[['cL','L'],['cH','H'],['cS','sLen'],['cB','bulbs'],['cN','n'],['cPost','posts'],['cSnapX','snapX'],['cSnapY','snapY'],['cOff','gridOff'],['cClose','close']];
-function fillCfg(){cfgMap.forEach(([id,k])=>$(id).value=cfg[k]);$('cLeft').checked=!!cfg.startLeft;$('cYAuto').checked=!!cfg.yAuto;$('cMagRows').checked=!!cfg.mag;$('ex').value=cfg.ex}
+function fillCfg(){cfgMap.forEach(([id,k])=>$(id).value=cfg[k]);$('cLeft').checked=!!cfg.startLeft;$('flipSide').setAttribute('aria-pressed',R());$('cYAuto').checked=!!cfg.yAuto;$('cMagRows').checked=!!cfg.mag;$('ex').value=cfg.ex}
 cfgMap.forEach(([id,k])=>$(id).addEventListener('input',()=>{const v=num(id);$('cfgErr').textContent='';
   const bad=v==null||(['L','H','sLen','bulbs','n'].includes(k)&&v<=0)||(['posts','snapX','snapY','close'].includes(k)&&v<0);
   if(bad){$('cfgErr').textContent='Use a number above 0 for sizes and counts.';return}
   cfg[k]=(k==='bulbs'||k==='n')?Math.max(1,Math.min(k==='n'?12:100000,Math.round(v))):v;ensure();changed()}));
+$('flipSide').onclick=()=>{cfg.side=R()?'left':'right';$('flipSide').setAttribute('aria-pressed',R());save();fit()};
 $('cLeft').onchange=e=>{cfg.startLeft=e.target.checked;changed()};
 $('cYAuto').onchange=e=>{cfg.yAuto=e.target.checked;changed()};
 $('cMagRows').onchange=e=>{cfg.mag=e.target.checked;changed()};
