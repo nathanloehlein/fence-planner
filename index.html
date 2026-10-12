@@ -126,6 +126,7 @@ textarea{min-height:70px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,
     <div class="row"><label>Custom vertical grid (in)<input type="number" id="cSnapY" min="1" step="1"></label><label>Too close under (in)<input type="number" id="cClose" min="0" step="1"></label></div>
     <label class="check" style="margin-bottom:6px"><input type="checkbox" id="cMagRows"> Snap to existing rows, columns, and posts</label>
     <label class="check"><input type="checkbox" id="cLeft"> Strings start at the controller end</label>
+    <label class="check" style="margin-top:6px"><input type="checkbox" id="cShort"> Short panel is at the controller end</label>
     <div id="cfgErr" class="hint over" style="margin:8px 0 0"></div>
   </section>
 
@@ -145,7 +146,7 @@ textarea{min-height:70px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,
 const COLORS=['#3CC99B','#9C8DFF','#FF7B5A','#FF6EA9','#4FA9FF','#F2B53B','#8FD24C','#E6E6E6','#27C4D8','#C97EFF','#FF9F45','#B9F25C'];
 const KEY='fence-light-planner-v1';
 const PADX=30,PADT=30,PADB=34,MAG=10;
-let cfg={v:2,L:64,H:6,sLen:165,bulbs:500,n:8,posts:8,snapX:4,yAuto:true,snapY:4,gridOff:0,close:2.5,mag:true,startLeft:true,ex:4,side:'left'};
+let cfg={v:2,L:64,H:6,sLen:165,bulbs:500,n:8,posts:8,snapX:4,yAuto:true,snapY:4,gridOff:0,close:2.5,mag:true,startLeft:true,ex:4,side:'left',shortNear:false};
 let strings=[],cur=0,hist=[],active=null,view={zoom:1,ox:PADX,oy:PADT},geo={bx:1,sx:1,sy:1,W:600,H:300};
 let readout=null,mode=null,dragInfo=null,hover=null,guide={},raf=0,spaceDown=false,ctrlDown=false;
 const ptrs=new Map();let pinch=null,panLast=null;
@@ -183,7 +184,7 @@ const R=()=>cfg.side==='right';
 const X=x=>view.ox+(R()?Lin()-x:x)*geo.sx,Y=y=>view.oy+y*geo.sy;
 function zoomAt(px,py,f){layout();const fx=(px-view.ox)/geo.sx,fy=(py-view.oy)/geo.sy;view.zoom=clamp(view.zoom*f,0.5,80);layout();view.ox=px-fx*geo.sx;view.oy=py-fy*geo.sy;schedule()}
 
-function postXs(){const a=[0,Lin()];if(cfg.posts>0)for(let x=cfg.posts*12;x<Lin()-1e-6;x+=cfg.posts*12)a.push(x);return a}
+function postXs(){const a=[0,Lin()],P=cfg.posts*12;if(P>0){if(cfg.shortNear){for(let x=Lin()-P;x>1e-6;x-=P)a.push(x)}else{for(let x=P;x<Lin()-1e-6;x+=P)a.push(x)}}return a}
 function segTargets(skip){const rows=[],cols=[];strings.forEach((s,k)=>{if(!s.vis)return;for(let i=0;i+1<s.pts.length;i++){if(skip&&skip(k,i))continue;const a=s.pts[i],b=s.pts[i+1];
   if(Math.abs(a.y-b.y)<1e-6)rows.push(a.y);else if(Math.abs(a.x-b.x)<1e-6)cols.push(a.x)}});return {rows,cols}}
 function snapX(x,skip){if(ctrlDown)return clamp(Math.round(x),0,Lin());if(cfg.mag){const c=[...postXs(),...segTargets(skip).cols];let best=null,bd=MAG;for(const v of c){const d=Math.abs(v-x)*geo.sx;if(d<bd){bd=d;best=v}}if(best!=null){guide.x=best;return Math.round(best)}}
@@ -373,12 +374,13 @@ $('gWeave').onclick=()=>{genErr();const sp=inch('gWS'),top=inch('gWT'),bot=inch(
   for(let gd=0;gd<3000;gd++){s.push({x,y:target});const nx=x+dir*sp;if(dir>0?nx>T+1e-9:nx<T-1e-9)break;x=nx;s.push({x,y:target});target=target===top?bot:top}finish()};
 
 const cfgMap=[['cL','L'],['cH','H'],['cS','sLen'],['cB','bulbs'],['cN','n'],['cPost','posts'],['cSnapX','snapX'],['cSnapY','snapY'],['cOff','gridOff'],['cClose','close']];
-function fillCfg(){cfgMap.forEach(([id,k])=>$(id).value=cfg[k]);$('cLeft').checked=!!cfg.startLeft;$('flipSide').setAttribute('aria-pressed',R());$('cYAuto').checked=!!cfg.yAuto;$('cMagRows').checked=!!cfg.mag;$('ex').value=cfg.ex}
+function fillCfg(){cfgMap.forEach(([id,k])=>$(id).value=cfg[k]);$('cLeft').checked=!!cfg.startLeft;$('cShort').checked=!!cfg.shortNear;$('flipSide').setAttribute('aria-pressed',R());$('cYAuto').checked=!!cfg.yAuto;$('cMagRows').checked=!!cfg.mag;$('ex').value=cfg.ex}
 cfgMap.forEach(([id,k])=>$(id).addEventListener('input',()=>{const v=num(id);$('cfgErr').textContent='';
   const bad=v==null||(['L','H','sLen','bulbs','n'].includes(k)&&v<=0)||(['posts','snapX','snapY','close'].includes(k)&&v<0);
   if(bad){$('cfgErr').textContent='Use a number above 0 for sizes and counts.';return}
   cfg[k]=(k==='bulbs'||k==='n')?Math.max(1,Math.min(k==='n'?12:100000,Math.round(v))):v;ensure();changed()}));
 $('flipSide').onclick=()=>{cfg.side=R()?'left':'right';$('flipSide').setAttribute('aria-pressed',R());save();fit()};
+$('cShort').onchange=e=>{cfg.shortNear=e.target.checked;changed()};
 $('cLeft').onchange=e=>{cfg.startLeft=e.target.checked;changed()};
 $('cYAuto').onchange=e=>{cfg.yAuto=e.target.checked;changed()};
 $('cMagRows').onchange=e=>{cfg.mag=e.target.checked;changed()};
